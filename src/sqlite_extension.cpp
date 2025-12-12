@@ -30,6 +30,9 @@ static void LoadInternal(ExtensionLoader &loader) {
 	SQLiteQueryFunction query_func;
 	loader.RegisterFunction(query_func);
 
+	SQLiteVacuumFunction vacuum_func;
+	loader.RegisterFunction(vacuum_func);
+
 	auto &db = loader.GetDatabaseInstance();
 	auto &config = DBConfig::GetConfig(db);
 	config.AddExtensionOption("sqlite_all_varchar", "Load all SQLite columns as VARCHAR columns", LogicalType::BOOLEAN);

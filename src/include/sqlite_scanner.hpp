@@ -48,4 +48,9 @@ public:
 	SQLiteQueryFunction();
 };
 
+class SQLiteVacuumFunction : public TableFunction {
+public:
+	SQLiteVacuumFunction();
+};
+
 } // namespace duckdb

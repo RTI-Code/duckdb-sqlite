@@ -1,0 +1,31 @@
+# name: test/sql/storage/attach_vacuum.test
+# description: Test VACUUM on attached SQLite database
+# group: [sqlite_storage]
+
+require sqlite_scanner
+
+statement ok
+ATTACH '__TEST_DIR__/attach_vacuum.db' AS s (TYPE SQLITE)
+
+statement ok
+CREATE TABLE s.test_table (id INTEGER, value TEXT)
+
+statement ok
+INSERT INTO s.test_table VALUES (1, 'hello'), (2, 'world')
+
+# Test that VACUUM works on the attached SQLite database
+statement ok
+VACUUM s
+
+# Verify the data is still there after vacuum
+query II
+SELECT * FROM s.test_table ORDER BY id
+----
+1	hello
+2	world
+
+# Test the sqlite_vacuum function call
+query I
+CALL sqlite_vacuum('s')
+----
+true
