@@ -21,7 +21,7 @@ SQLiteDB::~SQLiteDB() {
 	Close();
 }
 
-SQLiteDB::SQLiteDB(SQLiteDB &&other) noexcept {
+SQLiteDB::SQLiteDB(SQLiteDB &&other) noexcept : db(nullptr) {
 	std::swap(db, other.db);
 }
 
