@@ -35,7 +35,6 @@ public:
 private:
 	SQLiteCatalog &sqlite_catalog;
 	SQLiteDB *db;
-	SQLiteDB owned_db;
 	case_insensitive_map_t<unique_ptr<CatalogEntry>> catalog_entries;
 };
 

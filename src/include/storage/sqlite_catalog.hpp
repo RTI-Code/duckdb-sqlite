@@ -63,6 +63,11 @@ public:
 	//! Release the in-memory database (if there is any)
 	void ReleaseInMemoryDatabase();
 
+	//! Returns a reference to the persistent database connection
+	SQLiteDB *GetDatabase();
+	//! Release the database connection
+	void ReleaseDatabase(SQLiteDB *db);
+
 private:
 	void DropSchema(ClientContext &context, DropInfo &info) override;
 
@@ -76,6 +81,11 @@ private:
 	mutex in_memory_lock;
 	//! Whether or not there is any active transaction on the in-memory database
 	bool active_in_memory;
+	//! Connection pool for on-disk databases
+	vector<unique_ptr<SQLiteDB>> connection_pool;
+	vector<SQLiteDB*> available_connections;
+	//! The lock maintaining access to the connection pool
+	mutex pool_lock;
 };
 
 } // namespace duckdb

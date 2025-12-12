@@ -12,23 +12,18 @@
 #include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/parsed_expression_iterator.hpp"
 #include "duckdb/parser/expression/columnref_expression.hpp"
+#include "duckdb/common/printer.hpp"
 
 namespace duckdb {
 
 SQLiteTransaction::SQLiteTransaction(SQLiteCatalog &sqlite_catalog, TransactionManager &manager, ClientContext &context)
     : Transaction(manager, context), sqlite_catalog(sqlite_catalog) {
-	if (sqlite_catalog.InMemory()) {
-		// in-memory database - get a reference to the in-memory connection
-		db = sqlite_catalog.GetInMemoryDatabase();
-	} else {
-		// on-disk database - open a new database connection
-		owned_db = SQLiteDB::Open(sqlite_catalog.path, sqlite_catalog.options, true);
-		db = &owned_db;
-	}
+	// Use persistent connection for both in-memory and on-disk databases
+	db = sqlite_catalog.GetDatabase();
 }
 
 SQLiteTransaction::~SQLiteTransaction() {
-	sqlite_catalog.ReleaseInMemoryDatabase();
+	sqlite_catalog.ReleaseDatabase(db);
 }
 
 void SQLiteTransaction::Start() {

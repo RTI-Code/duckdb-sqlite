@@ -19,11 +19,11 @@ struct SQLiteOpenOptions {
 	// busy time-out in ms
 	idx_t busy_timeout = 5000;
 	// journal mode
-	string journal_mode;
+	string journal_mode = "WAL";
 	// synchronous mode (OFF, NORMAL, FULL, EXTRA)
-	string synchronous;
+	string synchronous = "NORMAL";
 	// wal autocheckpoint threshold (-1 = don't set, 0 = disable, >0 = page count)
-	int wal_autocheckpoint = -1;
+	int wal_autocheckpoint = 1000;
 };
 
 } // namespace duckdb
