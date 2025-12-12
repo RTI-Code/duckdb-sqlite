@@ -32,7 +32,7 @@ SQLiteDB &SQLiteDB::operator=(SQLiteDB &&other) noexcept {
 
 SQLiteDB SQLiteDB::Open(const string &path, const SQLiteOpenOptions &options, bool is_shared) {
 	SQLiteDB result;
-	int flags = SQLITE_OPEN_PRIVATECACHE;
+	int flags = SQLITE_OPEN_PRIVATECACHE | SQLITE_OPEN_URI;
 	if (options.access_mode == AccessMode::READ_ONLY) {
 		flags |= SQLITE_OPEN_READONLY;
 	} else {
@@ -44,7 +44,16 @@ SQLiteDB SQLiteDB::Open(const string &path, const SQLiteOpenOptions &options, bo
 		flags |= SQLITE_OPEN_NOMUTEX;
 	}
 	flags |= SQLITE_OPEN_EXRESCODE;
-	auto rc = sqlite3_open_v2(path.c_str(), &result.db, flags, nullptr);
+
+	// Build URI path with immutable flag for read-only mode
+	string uri_path = "file:" + path;
+	if (options.access_mode == AccessMode::READ_ONLY) {
+		// Add immutable=1 flag for read-only databases
+		// This tells SQLite the file won't change, disabling change detection and locking
+		uri_path += "?immutable=1";
+	}
+
+	auto rc = sqlite3_open_v2(uri_path.c_str(), &result.db, flags, nullptr);
 	if (rc != SQLITE_OK) {
 		throw std::runtime_error("Unable to open database \"" + path + "\": " + string(sqlite3_errstr(rc)));
 	}
