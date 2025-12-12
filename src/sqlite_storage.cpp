@@ -22,6 +22,10 @@ static unique_ptr<Catalog> SQLiteAttach(optional_ptr<StorageExtensionInfo> stora
 			options.busy_timeout = entry.second.GetValue<uint64_t>();
 		} else if (StringUtil::CIEquals(entry.first, "journal_mode")) {
 			options.journal_mode = entry.second.ToString();
+		} else if (StringUtil::CIEquals(entry.first, "synchronous")) {
+			options.synchronous = entry.second.ToString();
+		} else if (StringUtil::CIEquals(entry.first, "wal_autocheckpoint")) {
+			options.wal_autocheckpoint = entry.second.GetValue<int32_t>();
 		} else {
 			throw NotImplementedException("Unsupported parameter for SQLite Attach: %s", entry.first);
 		}

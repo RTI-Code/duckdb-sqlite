@@ -20,6 +20,10 @@ struct SQLiteOpenOptions {
 	idx_t busy_timeout = 5000;
 	// journal mode
 	string journal_mode;
+	// synchronous mode (OFF, NORMAL, FULL, EXTRA)
+	string synchronous;
+	// wal autocheckpoint threshold (-1 = don't set, 0 = disable, >0 = page count)
+	int wal_autocheckpoint = -1;
 };
 
 } // namespace duckdb
