@@ -80,16 +80,19 @@ SQLiteDB SQLiteDB::Open(const string &path, const SQLiteOpenOptions &options, bo
 		}
 	}
 	// Set pragmas before any transactions are started
-	if (!options.journal_mode.empty()) {
-		result.Execute("PRAGMA journal_mode=" + KeywordHelper::EscapeQuotes(options.journal_mode, '\''));
-	}
-	if (!options.synchronous.empty()) {
-		result.Execute("PRAGMA synchronous=" + KeywordHelper::EscapeQuotes(options.synchronous, '\''));
-	}
-	if (options.wal_autocheckpoint >= 0) {
-		rc = sqlite3_wal_autocheckpoint(result.db, options.wal_autocheckpoint);
-		if (rc != SQLITE_OK) {
-			throw std::runtime_error("Failed to set wal_autocheckpoint");
+	// Skip for read-only connections since these pragmas don't affect read behavior
+	if (options.access_mode != AccessMode::READ_ONLY) {
+		if (!options.journal_mode.empty()) {
+			result.Execute("PRAGMA journal_mode=" + KeywordHelper::EscapeQuotes(options.journal_mode, '\''));
+		}
+		if (!options.synchronous.empty()) {
+			result.Execute("PRAGMA synchronous=" + KeywordHelper::EscapeQuotes(options.synchronous, '\''));
+		}
+		if (options.wal_autocheckpoint >= 0) {
+			rc = sqlite3_wal_autocheckpoint(result.db, options.wal_autocheckpoint);
+			if (rc != SQLITE_OK) {
+				throw std::runtime_error("Failed to set wal_autocheckpoint");
+			}
 		}
 	}
 	return result;

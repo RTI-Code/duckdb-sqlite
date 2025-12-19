@@ -37,13 +37,10 @@ TableFunction SQLiteTableEntry::GetScanFunction(ClientContext &context, unique_p
 	if (!db.GetRowIdInfo(name, result->row_id_info)) {
 		result->rows_per_group = optional_idx();
 	}
-	if (!transaction.IsReadOnly() || sqlite_catalog.InMemory()) {
-		// for in-memory databases or if we have transaction-local changes we can
-		// only do a single-threaded scan set up the transaction's connection object
-		// as the global db
-		result->global_db = &db;
-		result->rows_per_group = optional_idx();
-	}
+	// Always use the persistent connection to avoid creating extra connections
+	// (each new connection has overhead and causes issues with WAL visibility)
+	result->global_db = &db;
+	result->rows_per_group = optional_idx();
 	result->table = this;
 
 	bind_data = std::move(result);

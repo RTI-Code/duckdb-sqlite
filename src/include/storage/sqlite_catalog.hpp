@@ -11,6 +11,8 @@
 #include "duckdb/catalog/catalog.hpp"
 #include "sqlite_options.hpp"
 #include "sqlite_db.hpp"
+#include <atomic>
+#include <mutex>
 
 namespace duckdb {
 class SQLiteSchemaEntry;
@@ -61,6 +63,12 @@ public:
 	//! Returns a reference to the persistent database connection
 	SQLiteDB &GetPersistentDatabase();
 
+	//! Transaction state management for the shared connection
+	//! Returns true if this call started the transaction (caller should track this)
+	bool TryBeginTransaction();
+	//! Commits if this was the last active transaction
+	void EndTransaction(bool commit);
+
 private:
 	void DropSchema(ClientContext &context, DropInfo &info) override;
 
@@ -70,6 +78,9 @@ private:
 	bool in_memory;
 	//! Single persistent database connection (kept open to avoid WAL checkpoints)
 	SQLiteDB persistent_db;
+	//! Transaction state tracking
+	std::mutex transaction_mutex;
+	int transaction_depth = 0;
 };
 
 } // namespace duckdb

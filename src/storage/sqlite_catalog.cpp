@@ -55,6 +55,32 @@ SQLiteDB &SQLiteCatalog::GetPersistentDatabase() {
 	return persistent_db;
 }
 
+bool SQLiteCatalog::TryBeginTransaction() {
+	lock_guard<std::mutex> lock(transaction_mutex);
+	transaction_depth++;
+	if (transaction_depth == 1) {
+		persistent_db.Execute("BEGIN TRANSACTION");
+		return true;
+	}
+	return false;
+}
+
+void SQLiteCatalog::EndTransaction(bool commit) {
+	lock_guard<std::mutex> lock(transaction_mutex);
+	if (transaction_depth <= 0) {
+		// No active transaction - nothing to do
+		return;
+	}
+	transaction_depth--;
+	if (transaction_depth == 0) {
+		if (commit) {
+			persistent_db.Execute("COMMIT");
+		} else {
+			persistent_db.Execute("ROLLBACK");
+		}
+	}
+}
+
 void SQLiteCatalog::DropSchema(ClientContext &context, DropInfo &info) {
 	throw BinderException("SQLite databases do not support dropping schemas");
 }

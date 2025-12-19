@@ -26,13 +26,13 @@ SQLiteTransaction::~SQLiteTransaction() {
 }
 
 void SQLiteTransaction::Start() {
-	db->Execute("BEGIN TRANSACTION");
+	sqlite_catalog.TryBeginTransaction();
 }
 void SQLiteTransaction::Commit() {
-	db->Execute("COMMIT");
+	sqlite_catalog.EndTransaction(true);
 }
 void SQLiteTransaction::Rollback() {
-	db->Execute("ROLLBACK");
+	sqlite_catalog.EndTransaction(false);
 }
 
 SQLiteDB &SQLiteTransaction::GetDB() {
