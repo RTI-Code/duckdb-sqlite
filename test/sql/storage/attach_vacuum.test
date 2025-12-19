@@ -15,7 +15,7 @@ INSERT INTO s.test_table VALUES (1, 'hello'), (2, 'world')
 
 # Test that VACUUM works on the attached SQLite database
 statement ok
-VACUUM s
+CALL sqlite_vacuum('s')
 
 # Verify the data is still there after vacuum
 query II
