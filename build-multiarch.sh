@@ -51,8 +51,8 @@ build_arch() {
 }
 
 # Build for both architectures
-build_arch "amd64" "linux/amd64" "linux_amd64"
 build_arch "arm64" "linux/arm64" "linux_arm64"
+build_arch "amd64" "linux/amd64" "linux_amd64"
 
 echo ""
 echo "=== Build Complete ==="
