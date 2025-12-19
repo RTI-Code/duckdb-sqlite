@@ -58,15 +58,8 @@ public:
 	bool InMemory() override;
 	string GetDBPath() override;
 
-	//! Returns a reference to the in-memory database (if any)
-	SQLiteDB *GetInMemoryDatabase();
-	//! Release the in-memory database (if there is any)
-	void ReleaseInMemoryDatabase();
-
 	//! Returns a reference to the persistent database connection
-	SQLiteDB *GetDatabase();
-	//! Release the database connection
-	void ReleaseDatabase(SQLiteDB *db);
+	SQLiteDB &GetPersistentDatabase();
 
 private:
 	void DropSchema(ClientContext &context, DropInfo &info) override;
@@ -75,17 +68,8 @@ private:
 	unique_ptr<SQLiteSchemaEntry> main_schema;
 	//! Whether or not the database is in-memory
 	bool in_memory;
-	//! In-memory database - if any
-	SQLiteDB in_memory_db;
-	//! The lock maintaing access to the in-memory database
-	mutex in_memory_lock;
-	//! Whether or not there is any active transaction on the in-memory database
-	bool active_in_memory;
-	//! Connection pool for on-disk databases
-	vector<unique_ptr<SQLiteDB>> connection_pool;
-	vector<SQLiteDB*> available_connections;
-	//! The lock maintaining access to the connection pool
-	mutex pool_lock;
+	//! Single persistent database connection (kept open to avoid WAL checkpoints)
+	SQLiteDB persistent_db;
 };
 
 } // namespace duckdb

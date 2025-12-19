@@ -34,6 +34,7 @@ public:
 
 private:
 	SQLiteCatalog &sqlite_catalog;
+	//! Pointer to the persistent database connection
 	SQLiteDB *db;
 	case_insensitive_map_t<unique_ptr<CatalogEntry>> catalog_entries;
 };

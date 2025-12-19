@@ -18,12 +18,11 @@ namespace duckdb {
 
 SQLiteTransaction::SQLiteTransaction(SQLiteCatalog &sqlite_catalog, TransactionManager &manager, ClientContext &context)
     : Transaction(manager, context), sqlite_catalog(sqlite_catalog) {
-	// Use persistent connection for both in-memory and on-disk databases
-	db = sqlite_catalog.GetDatabase();
+	// Use the single persistent connection - SQLite autocommit handles each statement
+	db = &sqlite_catalog.GetPersistentDatabase();
 }
 
 SQLiteTransaction::~SQLiteTransaction() {
-	sqlite_catalog.ReleaseDatabase(db);
 }
 
 void SQLiteTransaction::Start() {

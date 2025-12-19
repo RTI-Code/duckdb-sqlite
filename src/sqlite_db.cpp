@@ -45,11 +45,11 @@ SQLiteDB SQLiteDB::Open(const string &path, const SQLiteOpenOptions &options, bo
 	}
 	flags |= SQLITE_OPEN_EXRESCODE;
 
-	// Build URI path with immutable flag for read-only mode
+	// Build URI path
 	string uri_path = "file:" + path;
-	if (options.access_mode == AccessMode::READ_ONLY) {
-		// Add immutable=1 flag for read-only databases
-		// This tells SQLite the file won't change, disabling change detection and locking
+	// Note: immutable=1 is incompatible with WAL mode (it ignores the WAL file)
+	// Only use immutable for read-only mode when NOT using WAL
+	if (options.access_mode == AccessMode::READ_ONLY && options.journal_mode != "WAL") {
 		uri_path += "?immutable=1";
 	}
 

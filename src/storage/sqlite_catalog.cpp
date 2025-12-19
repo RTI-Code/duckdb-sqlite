@@ -9,12 +9,9 @@
 namespace duckdb {
 
 SQLiteCatalog::SQLiteCatalog(AttachedDatabase &db_p, const string &path, SQLiteOpenOptions options_p)
-    : Catalog(db_p), path(path), options(std::move(options_p)), in_memory(path == ":memory:"),
-      active_in_memory(false) {
-	if (InMemory()) {
-		in_memory_db = SQLiteDB::Open(path, options, true);
-	}
-	// Connection pool will be created on-demand for on-disk databases
+    : Catalog(db_p), path(path), options(std::move(options_p)), in_memory(path == ":memory:") {
+	// Single persistent connection (kept open to avoid WAL checkpoint on every query)
+	persistent_db = SQLiteDB::Open(path, options, true);
 }
 
 SQLiteCatalog::~SQLiteCatalog() {
@@ -54,61 +51,8 @@ string SQLiteCatalog::GetDBPath() {
 	return path;
 }
 
-SQLiteDB *SQLiteCatalog::GetInMemoryDatabase() {
-	if (!InMemory()) {
-		throw InternalException("GetInMemoryDatabase() called on a non-in-memory database");
-	}
-	lock_guard<mutex> l(in_memory_lock);
-	if (active_in_memory) {
-		throw TransactionException("Only a single transaction can be active on an "
-		                           "in-memory SQLite database at a time");
-	}
-	active_in_memory = true;
-	return &in_memory_db;
-}
-
-void SQLiteCatalog::ReleaseInMemoryDatabase() {
-	if (!InMemory()) {
-		return;
-	}
-	lock_guard<mutex> l(in_memory_lock);
-	if (!active_in_memory) {
-		throw InternalException("ReleaseInMemoryDatabase called but there is no "
-		                        "active transaction on an in-memory database");
-	}
-	active_in_memory = false;
-}
-
-SQLiteDB *SQLiteCatalog::GetDatabase() {
-	if (InMemory()) {
-		return GetInMemoryDatabase();
-	}
-
-	lock_guard<mutex> l(pool_lock);
-
-	// Try to get an available connection from the pool
-	if (!available_connections.empty()) {
-		auto *db = available_connections.back();
-		available_connections.pop_back();
-		return db;
-	}
-
-	// No available connections, create a new one
-	auto new_conn = make_uniq<SQLiteDB>(SQLiteDB::Open(path, options, true));
-	auto *db_ptr = new_conn.get();
-	connection_pool.push_back(std::move(new_conn));
-	return db_ptr;
-}
-
-void SQLiteCatalog::ReleaseDatabase(SQLiteDB *db) {
-	if (InMemory()) {
-		ReleaseInMemoryDatabase();
-		return;
-	}
-
-	lock_guard<mutex> l(pool_lock);
-	// Return connection to the available pool
-	available_connections.push_back(db);
+SQLiteDB &SQLiteCatalog::GetPersistentDatabase() {
+	return persistent_db;
 }
 
 void SQLiteCatalog::DropSchema(ClientContext &context, DropInfo &info) {
