@@ -47,9 +47,20 @@ SQLiteDB SQLiteDB::Open(const string &path, const SQLiteOpenOptions &options, bo
 
 	// Build URI path
 	string uri_path = "file:" + path;
-	// Note: immutable=1 is incompatible with WAL mode (it ignores the WAL file)
-	// Only use immutable for read-only mode when NOT using WAL
-	if (options.access_mode == AccessMode::READ_ONLY && options.journal_mode != "WAL") {
+	// Determine whether to use immutable mode
+	bool use_immutable = false;
+	if (options.immutable == 1) {
+		// Explicitly enabled
+		use_immutable = true;
+	} else if (options.immutable == 0) {
+		// Explicitly disabled
+		use_immutable = false;
+	} else {
+		// Auto: use immutable for read-only mode when NOT using WAL
+		// Note: immutable=1 ignores the WAL file, so it's incompatible with WAL mode
+		use_immutable = (options.access_mode == AccessMode::READ_ONLY && options.journal_mode != "WAL");
+	}
+	if (use_immutable) {
 		uri_path += "?immutable=1";
 	}
 

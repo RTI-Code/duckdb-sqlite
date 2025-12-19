@@ -26,6 +26,8 @@ static unique_ptr<Catalog> SQLiteAttach(optional_ptr<StorageExtensionInfo> stora
 			options.synchronous = entry.second.ToString();
 		} else if (StringUtil::CIEquals(entry.first, "wal_autocheckpoint")) {
 			options.wal_autocheckpoint = entry.second.GetValue<int32_t>();
+		} else if (StringUtil::CIEquals(entry.first, "immutable")) {
+			options.immutable = entry.second.GetValue<bool>() ? 1 : 0;
 		} else {
 			throw NotImplementedException("Unsupported parameter for SQLite Attach: %s", entry.first);
 		}
