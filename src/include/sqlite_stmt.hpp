@@ -55,6 +55,7 @@ public:
 	                      int expected_type, idx_t col_idx);
 	void CheckTypeIsFloatOrInteger(sqlite3_value *val, int sqlite_column_type, idx_t col_idx);
 	void Reset();
+	void ClearBindings();
 };
 
 template <>

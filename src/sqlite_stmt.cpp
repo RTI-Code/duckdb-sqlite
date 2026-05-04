@@ -101,6 +101,10 @@ void SQLiteStatement::Reset() {
 	SQLiteUtils::Check(sqlite3_reset(stmt), db);
 }
 
+void SQLiteStatement::ClearBindings() {
+	SQLiteUtils::Check(sqlite3_clear_bindings(stmt), db);
+}
+
 template <>
 string SQLiteStatement::GetValue(idx_t col) {
 	D_ASSERT(stmt);

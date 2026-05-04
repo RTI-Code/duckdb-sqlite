@@ -6,6 +6,7 @@
 #include "storage/sqlite_transaction.hpp"
 #include "sqlite_db.hpp"
 #include "sqlite_stmt.hpp"
+#include <mutex>
 
 namespace duckdb {
 
@@ -25,7 +26,10 @@ public:
 
 	SQLiteTableEntry &table;
 	SQLiteStatement statement;
+	std::mutex rowid_lock;
+	vector<row_t> rowids;
 	idx_t delete_count;
+	bool delete_done = false;
 };
 
 string GetDeleteSQL(const string &table_name) {
@@ -38,9 +42,7 @@ string GetDeleteSQL(const string &table_name) {
 unique_ptr<GlobalSinkState> SQLiteDelete::GetGlobalSinkState(ClientContext &context) const {
 	auto &sqlite_table = table.Cast<SQLiteTableEntry>();
 
-	auto &transaction = SQLiteTransaction::Get(context, sqlite_table.catalog);
 	auto result = make_uniq<SQLiteDeleteGlobalState>(sqlite_table);
-	result->statement = transaction.GetDB().Prepare(GetDeleteSQL(sqlite_table.name));
 	return std::move(result);
 }
 
@@ -53,12 +55,8 @@ SinkResultType SQLiteDelete::Sink(ExecutionContext &context, DataChunk &chunk, O
 	chunk.Flatten();
 	auto &row_identifiers = chunk.data[row_id_index];
 	auto row_data = FlatVector::GetData<row_t>(row_identifiers);
-	for (idx_t i = 0; i < chunk.size(); i++) {
-		gstate.statement.Bind<int64_t>(0, row_data[i]);
-		gstate.statement.Step();
-		gstate.statement.Reset();
-	}
-	gstate.delete_count += chunk.size();
+	std::lock_guard<std::mutex> lock(gstate.rowid_lock);
+	gstate.rowids.insert(gstate.rowids.end(), row_data, row_data + chunk.size());
 	return SinkResultType::NEED_MORE_INPUT;
 }
 
@@ -67,6 +65,19 @@ SinkResultType SQLiteDelete::Sink(ExecutionContext &context, DataChunk &chunk, O
 //===--------------------------------------------------------------------===//
 SourceResultType SQLiteDelete::GetDataInternal(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const {
 	auto &insert_gstate = sink_state->Cast<SQLiteDeleteGlobalState>();
+	if (!insert_gstate.delete_done) {
+		if (!insert_gstate.statement.IsOpen()) {
+			auto &transaction = SQLiteTransaction::Get(context.client, insert_gstate.table.catalog);
+			insert_gstate.statement = transaction.GetDB().Prepare(GetDeleteSQL(insert_gstate.table.name));
+		}
+		for (auto row_id : insert_gstate.rowids) {
+			insert_gstate.statement.Bind<int64_t>(0, row_id);
+			insert_gstate.statement.Step();
+			insert_gstate.statement.Reset();
+		}
+		insert_gstate.delete_count = insert_gstate.rowids.size();
+		insert_gstate.delete_done = true;
+	}
 	chunk.SetCardinality(1);
 	chunk.SetValue(0, 0, Value::BIGINT(insert_gstate.delete_count));
 

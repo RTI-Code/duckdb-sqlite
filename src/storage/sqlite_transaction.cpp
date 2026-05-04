@@ -16,10 +16,47 @@
 
 namespace duckdb {
 
+class SQLiteCatalogMap {
+public:
+	optional_ptr<CatalogEntry> InsertEntry(const string &entry_name, unique_ptr<CatalogEntry> entry);
+	optional_ptr<CatalogEntry> GetEntry(const string &entry_name);
+	void EraseEntry(const string &entry_name);
+private:
+	mutex lock;
+	case_insensitive_map_t<unique_ptr<CatalogEntry>> catalog_entries;
+};
+
+
+optional_ptr<CatalogEntry> SQLiteCatalogMap::InsertEntry(const string &entry_name, unique_ptr<CatalogEntry> catalog_entry) {
+	lock_guard<mutex> guard(lock);
+	auto entry = catalog_entries.find(entry_name);
+	if (entry != catalog_entries.end()) {
+		return entry->second.get();
+	}
+	auto &result = *catalog_entry;
+	catalog_entries[entry_name] = std::move(catalog_entry);
+	return result;
+}
+
+optional_ptr<CatalogEntry> SQLiteCatalogMap::GetEntry(const string &entry_name) {
+	lock_guard<mutex> guard(lock);
+	auto entry = catalog_entries.find(entry_name);
+	if (entry != catalog_entries.end()) {
+		return entry->second.get();
+	}
+	return nullptr;
+}
+
+void SQLiteCatalogMap::EraseEntry(const string &entry_name) {
+	lock_guard<mutex> guard(lock);
+	catalog_entries.erase(entry_name);
+}
+
 SQLiteTransaction::SQLiteTransaction(SQLiteCatalog &sqlite_catalog, TransactionManager &manager, ClientContext &context)
     : Transaction(manager, context), sqlite_catalog(sqlite_catalog) {
 	// Use the single persistent connection - SQLite autocommit handles each statement
 	db = &sqlite_catalog.GetPersistentDatabase();
+	catalog_map = make_uniq<SQLiteCatalogMap>();
 }
 
 SQLiteTransaction::~SQLiteTransaction() {
@@ -100,9 +137,9 @@ unique_ptr<CreateIndexInfo> FromCreateIndex(ClientContext &context, TableCatalog
 }
 
 optional_ptr<CatalogEntry> SQLiteTransaction::GetCatalogEntry(const string &entry_name) {
-	auto entry = catalog_entries.find(entry_name);
-	if (entry != catalog_entries.end()) {
-		return entry->second.get();
+	auto entry = catalog_map->GetEntry(entry_name);
+	if (entry) {
+		return entry;
 	}
 	// catalog entry not found - look up table in main SQLite database
 	auto type = db->GetEntryType(entry_name);
@@ -163,13 +200,11 @@ optional_ptr<CatalogEntry> SQLiteTransaction::GetCatalogEntry(const string &entr
 	default:
 		throw InternalException("Unrecognized catalog entry type");
 	}
-	auto result_ptr = result.get();
-	catalog_entries[entry_name] = std::move(result);
-	return result_ptr;
+	return catalog_map->InsertEntry(entry_name, std::move(result));
 }
 
 void SQLiteTransaction::ClearTableEntry(const string &table_name) {
-	catalog_entries.erase(table_name);
+	catalog_map->EraseEntry(table_name);
 }
 
 string GetDropSQL(CatalogType type, const string &table_name, bool cascade) {
@@ -193,7 +228,7 @@ string GetDropSQL(CatalogType type, const string &table_name, bool cascade) {
 }
 
 void SQLiteTransaction::DropEntry(CatalogType type, const string &table_name, bool cascade) {
-	catalog_entries.erase(table_name);
+	catalog_map->EraseEntry(table_name);
 	db->Execute(GetDropSQL(type, table_name, cascade));
 }
 
