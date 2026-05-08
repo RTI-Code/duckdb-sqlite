@@ -25,6 +25,7 @@ public:
 	void Start();
 	void Commit();
 	void Rollback();
+	void SetReadWrite() override;
 
 	SQLiteDB &GetDB();
 	optional_ptr<CatalogEntry> GetCatalogEntry(const string &table_name);
@@ -35,8 +36,12 @@ public:
 
 private:
 	SQLiteCatalog &sqlite_catalog;
-	//! Pointer to the persistent database connection
+	//! Pointer to the active database connection (reader or writer)
 	SQLiteDB *db;
+	//! Owned read-only connection from the pool
+	SQLiteDB owned_reader_db;
+	//! Whether this transaction is currently using a pooled reader connection
+	bool using_reader = true;
 	unique_ptr<SQLiteCatalogMap> catalog_map;
 };
 

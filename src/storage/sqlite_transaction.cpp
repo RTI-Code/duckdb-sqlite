@@ -54,22 +54,64 @@ void SQLiteCatalogMap::EraseEntry(const string &entry_name) {
 
 SQLiteTransaction::SQLiteTransaction(SQLiteCatalog &sqlite_catalog, TransactionManager &manager, ClientContext &context)
     : Transaction(manager, context), sqlite_catalog(sqlite_catalog) {
-	// Use the single persistent connection - SQLite autocommit handles each statement
-	db = &sqlite_catalog.GetPersistentDatabase();
+	if (sqlite_catalog.InMemory()) {
+		db = &sqlite_catalog.GetPersistentDatabase();
+		using_reader = false;
+	} else {
+		owned_reader_db = sqlite_catalog.AcquireReadConnection();
+		db = &owned_reader_db;
+		using_reader = true;
+	}
 	catalog_map = make_uniq<SQLiteCatalogMap>();
 }
 
 SQLiteTransaction::~SQLiteTransaction() {
+	if (using_reader && owned_reader_db.IsOpen()) {
+		try {
+			owned_reader_db.Execute("ROLLBACK");
+		} catch (...) {
+		}
+		sqlite_catalog.ReleaseReadConnection(std::move(owned_reader_db));
+	}
 }
 
 void SQLiteTransaction::Start() {
-	sqlite_catalog.TryBeginTransaction();
+	if (using_reader) {
+		db->Execute("BEGIN TRANSACTION");
+	} else {
+		sqlite_catalog.TryBeginTransaction();
+	}
 }
 void SQLiteTransaction::Commit() {
-	sqlite_catalog.EndTransaction(true);
+	if (using_reader) {
+		db->Execute("COMMIT");
+		sqlite_catalog.ReleaseReadConnection(std::move(owned_reader_db));
+	} else {
+		sqlite_catalog.EndTransaction(true);
+	}
 }
 void SQLiteTransaction::Rollback() {
-	sqlite_catalog.EndTransaction(false);
+	if (using_reader) {
+		db->Execute("ROLLBACK");
+		sqlite_catalog.ReleaseReadConnection(std::move(owned_reader_db));
+	} else {
+		sqlite_catalog.EndTransaction(false);
+	}
+}
+
+void SQLiteTransaction::SetReadWrite() {
+	if (!IsReadOnly()) {
+		return;
+	}
+	if (using_reader) {
+		owned_reader_db.Execute("COMMIT");
+		using_reader = false;
+		sqlite_catalog.ReleaseReadConnection(std::move(owned_reader_db));
+
+		db = &sqlite_catalog.GetPersistentDatabase();
+		sqlite_catalog.TryBeginTransaction();
+	}
+	Transaction::SetReadWrite();
 }
 
 SQLiteDB &SQLiteTransaction::GetDB() {
