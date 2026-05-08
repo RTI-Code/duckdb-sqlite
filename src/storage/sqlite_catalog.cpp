@@ -81,6 +81,28 @@ void SQLiteCatalog::EndTransaction(bool commit) {
 	}
 }
 
+SQLiteDB SQLiteCatalog::AcquireReadConnection() {
+	{
+		lock_guard<std::mutex> lock(reader_pool_mutex);
+		if (!reader_pool.empty()) {
+			auto db = std::move(reader_pool.back());
+			reader_pool.pop_back();
+			return db;
+		}
+	}
+	SQLiteOpenOptions read_options = options;
+	read_options.access_mode = AccessMode::READ_ONLY;
+	read_options.immutable = 0;
+	return SQLiteDB::Open(path, read_options, true);
+}
+
+void SQLiteCatalog::ReleaseReadConnection(SQLiteDB db) {
+	lock_guard<std::mutex> lock(reader_pool_mutex);
+	if (reader_pool.size() < MAX_READER_POOL_SIZE) {
+		reader_pool.push_back(std::move(db));
+	}
+}
+
 void SQLiteCatalog::DropSchema(ClientContext &context, DropInfo &info) {
 	throw BinderException("SQLite databases do not support dropping schemas");
 }

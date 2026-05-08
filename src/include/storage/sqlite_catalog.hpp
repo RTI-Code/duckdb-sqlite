@@ -13,6 +13,7 @@
 #include "sqlite_db.hpp"
 #include <atomic>
 #include <mutex>
+#include <vector>
 
 namespace duckdb {
 class SQLiteSchemaEntry;
@@ -69,6 +70,11 @@ public:
 	//! Commits if this was the last active transaction
 	void EndTransaction(bool commit);
 
+	//! Acquire a read-only connection from the pool (or open a new one)
+	SQLiteDB AcquireReadConnection();
+	//! Return a read-only connection to the pool
+	void ReleaseReadConnection(SQLiteDB db);
+
 private:
 	void DropSchema(ClientContext &context, DropInfo &info) override;
 
@@ -78,9 +84,13 @@ private:
 	bool in_memory;
 	//! Single persistent database connection (kept open to avoid WAL checkpoints)
 	SQLiteDB persistent_db;
-	//! Transaction state tracking
+	//! Transaction state tracking for the writer connection
 	std::mutex transaction_mutex;
 	int transaction_depth = 0;
+	//! Read-only connection pool
+	static constexpr idx_t MAX_READER_POOL_SIZE = 64;
+	std::vector<SQLiteDB> reader_pool;
+	std::mutex reader_pool_mutex;
 };
 
 } // namespace duckdb
