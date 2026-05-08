@@ -37,9 +37,10 @@ TableFunction SQLiteTableEntry::GetScanFunction(ClientContext &context, unique_p
 	if (!db.GetRowIdInfo(name, result->row_id_info)) {
 		result->rows_per_group = optional_idx();
 	}
-	// Always use the persistent connection to avoid creating extra connections
-	// (each new connection has overhead and causes issues with WAL visibility)
-	result->global_db = &db;
+	// Don't cache global_db — the transaction's connection may change if promoted
+	// from a pooled reader to the persistent writer via SetReadWrite().
+	// The scan will resolve the connection from the transaction at execution time.
+	result->global_db = nullptr;
 	result->rows_per_group = optional_idx();
 	result->table = this;
 

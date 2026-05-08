@@ -3,6 +3,8 @@
 #include "sqlite_db.hpp"
 #include "sqlite_stmt.hpp"
 #include "sqlite_scanner.hpp"
+#include "storage/sqlite_transaction.hpp"
+#include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include <stdint.h>
 #include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/expression/cast_expression.hpp"
@@ -152,7 +154,7 @@ static unique_ptr<NodeStatistics> SqliteCardinality(ClientContext &context, cons
 static idx_t SqliteMaxThreads(ClientContext &context, const FunctionData *bind_data_p) {
 	D_ASSERT(bind_data_p);
 	auto &bind_data = bind_data_p->Cast<SqliteBindData>();
-	if (bind_data.global_db) {
+	if (bind_data.global_db || bind_data.table) {
 		return 1;
 	}
 	if (!bind_data.row_id_info.max_rowid.IsValid()) {
@@ -209,7 +211,12 @@ SqliteInitLocalState(ExecutionContext &context, TableFunctionInitInput &input, G
 	auto &gstate = global_state->Cast<SqliteGlobalState>();
 	auto result = make_uniq<SqliteLocalState>();
 	result->column_ids = input.column_ids;
-	result->db = bind_data.global_db;
+	if (bind_data.table) {
+		auto &transaction = SQLiteTransaction::Get(context.client, bind_data.table->catalog);
+		result->db = &transaction.GetDB();
+	} else {
+		result->db = bind_data.global_db;
+	}
 	if (!SqliteParallelStateNext(context.client, bind_data, *result, gstate)) {
 		result->done = true;
 	}
