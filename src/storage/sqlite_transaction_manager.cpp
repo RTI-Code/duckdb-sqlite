@@ -32,12 +32,10 @@ void SQLiteTransactionManager::RollbackTransaction(Transaction &transaction) {
 }
 
 void SQLiteTransactionManager::Checkpoint(ClientContext &context, bool force) {
-	// If wal_autocheckpoint is disabled (set to 0), don't checkpoint unless forced
 	if (!force && sqlite_catalog.options.wal_autocheckpoint == 0) {
 		return;
 	}
-	auto &transaction = SQLiteTransaction::Get(context, db.GetCatalog());
-	auto &db = transaction.GetDB();
+	auto &db = sqlite_catalog.GetPersistentDatabase();
 	db.Execute("PRAGMA wal_checkpoint");
 }
 
