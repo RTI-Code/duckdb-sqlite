@@ -1,0 +1,41 @@
+# name: test/sql/storage/attach_concurrent_reads.test
+# description: Test that concurrent reads on attached SQLite databases work correctly
+# group: [sqlite_storage]
+
+require sqlite_scanner
+
+# Set up test database with data
+statement ok
+ATTACH '__TEST_DIR__/attach_concurrent_reads.db' AS s (TYPE SQLITE)
+
+statement ok
+CREATE TABLE s.test_data (id INTEGER, value TEXT)
+
+statement ok
+INSERT INTO s.test_data VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma'), (4, 'delta'), (5, 'epsilon')
+
+# Basic read works
+query II
+SELECT * FROM s.test_data WHERE id = 1
+----
+1	alpha
+
+# Multiple sequential reads work (each is a separate transaction)
+query I
+SELECT COUNT(*) FROM s.test_data
+----
+5
+
+query II
+SELECT * FROM s.test_data WHERE id = 3
+----
+3	gamma
+
+# Read after write in separate transaction
+statement ok
+INSERT INTO s.test_data VALUES (6, 'zeta')
+
+query I
+SELECT COUNT(*) FROM s.test_data
+----
+6
