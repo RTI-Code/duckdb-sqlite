@@ -1,0 +1,83 @@
+# name: test/sql/storage/attach_reader_promotion.test
+# description: Test that read-to-write promotion works correctly for SQLite transactions
+# group: [sqlite_storage]
+
+require sqlite_scanner
+
+statement ok
+ATTACH '__TEST_DIR__/attach_reader_promotion.db' AS s (TYPE SQLITE)
+
+statement ok
+CREATE TABLE s.source (id INTEGER, value TEXT)
+
+statement ok
+INSERT INTO s.source VALUES (1, 'a'), (2, 'b'), (3, 'c')
+
+# Read then write in same transaction (triggers SetReadWrite promotion)
+statement ok
+BEGIN
+
+query I
+SELECT COUNT(*) FROM s.source
+----
+3
+
+statement ok
+INSERT INTO s.source VALUES (4, 'd')
+
+query I
+SELECT COUNT(*) FROM s.source
+----
+4
+
+statement ok
+COMMIT
+
+# Verify the write persisted
+query I
+SELECT COUNT(*) FROM s.source
+----
+4
+
+# Read then rollback write
+statement ok
+BEGIN
+
+query II
+SELECT * FROM s.source WHERE id = 4
+----
+4	d
+
+statement ok
+DELETE FROM s.source WHERE id = 4
+
+query I
+SELECT COUNT(*) FROM s.source
+----
+3
+
+statement ok
+ROLLBACK
+
+# Verify rollback worked
+query I
+SELECT COUNT(*) FROM s.source
+----
+4
+
+# CREATE TABLE AS (read then DDL in one statement — exercises promotion during sink)
+query I
+CREATE TABLE s.copy AS SELECT * FROM s.source
+----
+4
+
+query I
+SELECT COUNT(*) FROM s.copy
+----
+4
+
+# Read-only transaction (no promotion, stays on reader pool)
+query II
+SELECT * FROM s.source WHERE id = 1
+----
+1	a
